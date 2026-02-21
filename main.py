@@ -19,19 +19,19 @@ from loss_func import DistillationLoss
 from samplers import RASampler
 from augment4sig import new_data_aug_generator, Mixup1D
 
-import MLPMixer4sig_dist
-import transformer
-import MLPMixer_for_signal
-import PatchEchoClassifier
-import DeepConvLSTM
-import resnet4sig
+from models import MLPMixer4sig_dist
+from models import transformer
+from models import MLPMixer_for_signal
+from models import PatchEchoClassifier
+from models import DeepConvLSTM
+from models import resnet4sig
 # import PatchEchoAttnClassifier
-import PatchEchosAttnClassifier
+from models import PatchEchosAttnClassifier
 
 import utils
 
-from moment_adapters import MomentTeacherAdapter, MomentStudentAdapter
-from senvt_adapters import SenvtTeacherAdapter, SenvtStudentAdapter
+from models.moment_adapters import MomentTeacherAdapter, MomentStudentAdapter
+from models.senvt_adapters import SenvtTeacherAdapter, SenvtStudentAdapter
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Training script', add_help=False)

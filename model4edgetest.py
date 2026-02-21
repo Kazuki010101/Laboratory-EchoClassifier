@@ -1,10 +1,10 @@
 import argparse
-import MLPMixer4sig_dist
-import PatchEchoClassifier
-import PatchEchoAttnClassifier
-import torch
-import DeepConvLSTM
-import resnet4sig
+from models import MLPMixer4sig_dist
+from models import PatchEchoClassifier
+from models import PatchEchoAttnClassifier
+from models import torch
+from models import DeepConvLSTM
+from models import resnet4sig
 
 def main():
     parser = argparse.ArgumentParser(description="Example with conditional execution based on arguments.")

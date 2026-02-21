@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 import torch
 import torch.nn as nn
 
-import senvt 
+from models import senvt 
 
 
 def _strip_prefix_if_present(state_dict: Dict[str, torch.Tensor], prefix: str = "module.") -> Dict[str, torch.Tensor]:
