@@ -23,10 +23,10 @@ def _choose_state_dict_like(ckpt: Any) -> Dict[str, torch.Tensor]:
     raise ValueError("Checkpoint does not contain a recognizable state_dict/model.")
 
 
-def _strip_prefix_if_present(state_dict, prefix: str):
-    if not any(k.startswith(prefix) for k in state_dict.keys()):
-        return state_dict
-    return { (k[len(prefix):] if k.startswith(prefix) else k): v for k, v in state_dict.items() }
+# def _strip_prefix_if_present(state_dict, prefix: str):
+#     if not any(k.startswith(prefix) for k in state_dict.keys()):
+#         return state_dict
+#     return { (k[len(prefix):] if k.startswith(prefix) else k): v for k, v in state_dict.items() }
 
 def _safe_load_partial(model: nn.Module, src_state: Dict[str, torch.Tensor], verbose: bool = True) -> None:
     dst_state = model.state_dict()
@@ -52,8 +52,14 @@ def _safe_load_partial(model: nn.Module, src_state: Dict[str, torch.Tensor], ver
         else:
             skipped_missing.append(k)
 
+    if len(filtered) == 0:
+        raise RuntimeError(
+            "[SENvT CKPT] No parameters were loaded. "
+            "Checkpoint format or prefix may be wrong."
+        )
+    
     missing_keys, unexpected_keys = model.load_state_dict(filtered, strict=False)
-
+    
     if verbose:
         print(f"[SENvT CKPT] Loaded params: {len(filtered)}")
         if skipped_shape:
@@ -111,7 +117,11 @@ class SenvtTeacherAdapter(nn.Module):
     @torch.no_grad()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.to(self.device, non_blocking=True)
-        logits = self.core(x)   
+        logits = self.core(x)
+    
+        if isinstance(logits, (tuple, list)):
+            logits = logits[0]
+    
         return logits
 
 
@@ -123,6 +133,8 @@ class SenvtStudentAdapter(nn.Module):
         window_size: int,
         in_chans: int,
         device: torch.device = torch.device("cuda"),
+        ckpt_path: Optional[str] = None,
+        verbose_ckpt: bool = True,
     ):
         super().__init__()
 
@@ -130,15 +142,28 @@ class SenvtStudentAdapter(nn.Module):
             core = senvt.XS(num_classes=num_classes, window_size=window_size, in_chans=in_chans)
         elif variant == "S":
             core = senvt.S(num_classes=num_classes, window_size=window_size, in_chans=in_chans)
+        elif variant == "B":
+            core = senvt.B(num_classes=num_classes, window_size=window_size, in_chans=in_chans)
         else:
-            raise ValueError("Use XS or S for student")
+            raise ValueError(f"Unknown SENvT student variant: {variant}")
+
+        if ckpt_path is not None and ckpt_path != "":
+            ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+            src = _choose_state_dict_like(ckpt)
+            src = _strip_prefix_if_present(src, prefix="module.")
+            _safe_load_partial(core, src, verbose=verbose_ckpt)
 
         self.core = core.to(device)
         self.device = device
 
     def forward(self, x: torch.Tensor):
         x = x.to(self.device, non_blocking=True)
-        logits = self.core(x)  # [B, num_classes]
+        logits = self.core(x)
+
+        if isinstance(logits, (tuple, list)):
+            logits = logits[0]
+
         if self.training:
             return logits, logits
+
         return logits

@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+# 1. 推論効率を先に計測
+# 5/19 6:07スタート
+bash scripts/run_footprint_echo.sh
+
+# 2. 事前学習済みSENvT-BをSHL2023でfine-tuningして分類teacherを作る
+bash scripts/run_finetune_teacher_senvtB.sh
+
+# 実験済だけど、様子見
+# 3. 蒸留なしbaseline
+bash scripts/run_baseline_echo.sh
+
+# 4. 二段階蒸留の中間teacher作成
+bash scripts/run_stage1_senvt.sh
+
+# 5/25 ResnetLから再開　→　次の実験の時のconfig.shから、SとMをちゃんと入れておく
+# 5. fine-tuned SENvT-Bから直接蒸留
+
+bash scripts/run_one_stage_senvtB_echo.sh
+
+# 6. fine-tuned SENvT-B -> SENvT-XS/S -> 各student
+bash scripts/run_stage2_senvtXS_echo.sh
+bash scripts/run_stage2_senvtS_echo.sh
+
+# 7. 論文再現・参考比較
+bash scripts/run_reference_mlpmixer_echo.sh
+
+# 8. 最終表の自動生成
+bash scripts/run_summarize_echo.sh
+
+
+
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available())"

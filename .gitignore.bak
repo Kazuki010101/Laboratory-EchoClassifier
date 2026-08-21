@@ -1,0 +1,12 @@
+untitled.txt
+dataset/
+outputs/
+SHL_2023/
+okahashi_test/
+runs/
+.ipynb_checkpoints/
+Moment-pretrained/
+_pycache_
+__pycache__/
+runs_baseline/
+transfer_scripts/7_11_latex用APSの実験結果.txt

@@ -18,6 +18,10 @@ conda env export > environment.yml
 ### 1.2 Jupyter kernel
 
 ```bash
+conda create -n mfm311 python=3.11 -y && conda activate mfm311 && \
+conda install -y numpy=1.25.2 && \
+pip install huggingface-hub==0.24.0 transformers==4.33.3 momentfm==0.1.4 && \
+conda env export > environment.yml
 conda activate mfm311
 pip install ipykernel
 python -m ipykernel install --user --name mfm311 --display-name "Python (mfm311)"

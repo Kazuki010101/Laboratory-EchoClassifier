@@ -1,11 +1,32 @@
-untitled.txt
+# Dataset
 dataset/
-outputs/
 SHL_2023/
-okahashi_test/
-runs/
-.ipynb_checkpoints/
 Moment-pretrained/
-_pycache_
-__pycache__/
+
+# Experiment outputs
+experiments/
+outputs/
+runs/
 runs_baseline/
+okahashi_test/
+
+# Model checkpoints
+*.pth
+*.pt
+*.ckpt
+
+# Logs / temporary files
+*.log
+untitled.txt
+
+# Python
+__pycache__/
+_pycache_/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

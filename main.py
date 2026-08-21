@@ -5,6 +5,7 @@ import time
 import torch
 import torch.backends.cudnn as cudnn
 import json
+import os
 
 from pathlib import Path
 
@@ -27,6 +28,10 @@ from models import DeepConvLSTM
 from models import resnet4sig
 # import PatchEchoAttnClassifier
 from models import PatchEchosAttnClassifier
+from models import PatchLowRankGatedReservoir
+from models import PatchAdaptiveLowRankGatedReservoir
+from models import PatchInputFactorizedStateAttentiveLRGR
+from models import PatchStateInnovationLRGR
 
 import utils
 
@@ -130,7 +135,8 @@ def get_args_parser():
                         help='How to apply mixup/cutmix params. Per "batch", "pair", or "elem"')
 
     # Distillation parameters
-    parser.add_argument('--teacher-path', type=str, default='')
+    parser.add_argument('--teacher-path', default='', type=str)
+    parser.add_argument('--pretrained-student-path', default='', type=str)
     parser.add_argument('--distillation-type', default='none', choices=['none', 'soft', 'hard', 'soft2', 'soft3', 'soft4'], type=str, help="")
     parser.add_argument('--distillation-alpha', default=0.5, type=float, help="")
     parser.add_argument('--distillation-tau', default=1.0, type=float, help="")
@@ -173,6 +179,58 @@ def get_args_parser():
     # original
     parser.add_argument('--patch_size', default=16, type=int)
     parser.add_argument('--reservoir_size', default=100, type=int)
+    parser.add_argument('--reservoir_rank', default=64, type=int)
+    # parser.add_argument('--patch_keep_ratio', default=0.5, type=float)
+    # parser.add_argument('--input_rank', default=16, type=int)
+    parser.add_argument(
+        "--patch_keep_ratio",
+        default=0.5,
+        type=float,
+    )
+    
+    parser.add_argument(
+        "--innovation-threshold",
+        default=0.5,
+        type=float,
+        help="SIR-LRGR routing threshold used during hard routing.",
+    )
+    
+    parser.add_argument(
+        "--innovation-target-ratio",
+        default=0.5,
+        type=float,
+        help="Target average patch keep ratio for SIR-LRGR.",
+    )
+    
+    parser.add_argument(
+        "--innovation-budget-weight",
+        default=0.1,
+        type=float,
+        help="Weight of the SIR-LRGR routing budget loss.",
+    )
+    
+    parser.add_argument(
+        "--innovation-hidden-dim",
+        default=64,
+        type=int,
+        help="Hidden dimension of the state innovation router.",
+    )
+    
+    parser.add_argument(
+        "--innovation-min-keep",
+        default=1,
+        type=int,
+        help="Number of initial anchor patches that are always processed.",
+    )
+    
+    parser.add_argument(
+        "--input_rank",
+        "--input-rank",
+        dest="input_rank",
+        default=16,
+        type=int,
+    )
+    
     parser.add_argument('--data', default='SHL', choices=['SHL2023', 'SHL2024', 'ADL', 'PAMAP', 'REALWORLD', 'WISDM', 'CAPTURE', 'SHL2023_test'])
     parser.add_argument('--flip_on', action='store_true', default=False)
     
@@ -195,6 +253,25 @@ def main(args):
 
     dataset_train, dataset_val, args.nb_classes = build_dataset(args=args)#変更
 
+    print("===== Dataset Debug =====")
+    print("device:", device)
+    print("num_train:", len(dataset_train))
+    print("num_val:", len(dataset_val))
+    print("num_classes:", args.nb_classes)
+    
+    sample_x, sample_y = dataset_train[0]
+    
+    if not isinstance(sample_x, torch.Tensor):
+        sample_x = torch.from_numpy(sample_x)
+    
+    print("sample_x shape:", sample_x.shape)
+    print("sample_y:", sample_y)
+    print("sample_x mean:", sample_x.float().mean().item())
+    print("sample_x std:", sample_x.float().std().item())
+    print("sample_x min:", sample_x.float().min().item())
+    print("sample_x max:", sample_x.float().max().item())
+    print("=========================")
+    
     if args.distributed:
         num_tasks = utils.get_world_size()
         global_rank = utils.get_rank()
@@ -257,15 +334,68 @@ def main(args):
     elif args.student == "PESAC":
         print(f"Creating model: PatchSparseAttnReservoir")
         model = PatchEchosAttnClassifier.PatchReservoir(in_channels=3, patch_size=args.patch_size, stride=args.patch_size, reservoir_size=args.reservoir_size, num_classes=args.nb_classes)
+
+    elif args.student == "PRC_LRGR":
+        print(f"Creating model: LowRankGatedPatchReservoir")
+        model = PatchLowRankGatedReservoir.PatchReservoir(
+            in_channels=3,
+            patch_size=args.patch_size,
+            stride=args.patch_size,
+            reservoir_size=args.reservoir_size,
+            reservoir_rank=args.reservoir_rank,
+            num_classes=args.nb_classes
+        )
+
+    elif args.student == "APS_LRGR":
+        print(f"Creating model: AdaptivePatchSkippingLowRankGatedPatchReservoir")
+        model = PatchAdaptiveLowRankGatedReservoir.PatchReservoir(
+            in_channels=3,
+            patch_size=args.patch_size,
+            stride=args.patch_size,
+            reservoir_size=args.reservoir_size,
+            reservoir_rank=args.reservoir_rank,
+            patch_keep_ratio=args.patch_keep_ratio,
+            num_classes=args.nb_classes
+        )
+
+    elif args.student == "SIR_LRGR":
+        print(
+            "Creating model: "
+            "StateInnovationRoutedLowRankGatedPatchReservoir"
+        )
+    
+        model = PatchStateInnovationLRGR.PatchReservoir(
+            in_channels=3,
+            patch_size=args.patch_size,
+            stride=args.patch_size,
+            reservoir_size=args.reservoir_size,
+            reservoir_rank=args.reservoir_rank,
+            num_classes=args.nb_classes,
+            router_hidden_dim=args.innovation_hidden_dim,
+            routing_threshold=args.innovation_threshold,
+            target_keep_ratio=args.innovation_target_ratio,
+            minimum_keep_patches=args.innovation_min_keep,
+        )
+    elif args.student == "IFSA_LRGR":
+        print(f"Creating model: InputFactorizedStateAttentiveLowRankGatedPatchReservoir")
+        model = PatchInputFactorizedStateAttentiveLRGR.PatchReservoir(
+            in_channels=3,
+            patch_size=args.patch_size,
+            stride=args.patch_size,
+            reservoir_size=args.reservoir_size,
+            reservoir_rank=args.reservoir_rank,
+            input_rank=args.input_rank,
+            num_classes=args.nb_classes
+        )
     elif "DeepConvLSTM" in args.student:
         if "100" in args.student:
             config= {
             'n_hidden': 128,
             'n_layers': 1,  
             'n_filters': 64,
-            'n_classes': 8,  
+            'n_classes': args.nb_classes,  
             'filter_size': 5,  
-            'window_size': 496,  
+            'window_size': args.input_size,  
             'channels': 3,  
             'drop_prob': 0.5,  
             }
@@ -274,9 +404,9 @@ def main(args):
             'n_hidden': 64,  # 128 → 64
             'n_layers': 1,  
             'n_filters': 32,  # 64 → 32
-            'n_classes': 8,  
+            'n_classes': args.nb_classes,  
             'filter_size': 5,  
-            'window_size': 496,  
+            'window_size': args.input_size,  
             'channels': 3,  
             'drop_prob': 0.5,  
             }
@@ -285,9 +415,9 @@ def main(args):
             'n_hidden': 32,  # 128 → 32
             'n_layers': 1,  
             'n_filters': 16,  # 64 → 16
-            'n_classes': 8,  
+            'n_classes': args.nb_classes,  
             'filter_size': 5,  
-            'window_size': 496,  
+            'window_size': args.input_size,  
             'channels': 3,  
             'drop_prob': 0.5,  
             }
@@ -355,25 +485,39 @@ def main(args):
             device=device
         )
 
-    elif args.student == "senvt-XS":
-        print("Creating student: SENvT-XS")
+    # elif args.student == "senvt-XS":
+    #     print("Creating student: SENvT-XS")
+    #     model = SenvtStudentAdapter(
+    #         variant="XS",
+    #         num_classes=args.nb_classes,
+    #         window_size=args.input_size,   
+    #         in_chans=3,
+    #         device=device
+    #     )
+    # elif args.student == "senvt-S":
+    #     print("Creating student: SENvT-S")
+    #     model = SenvtStudentAdapter(
+    #         variant="S",
+    #         num_classes=args.nb_classes,
+    #         window_size=args.input_size,
+    #         in_chans=3,
+    #         device=device
+    #     )
+
+    elif args.student.startswith("senvt-"):
+        variant = args.student.replace("senvt-", "")
+        print(f"Creating student: SENvT-{variant}")
+    
         model = SenvtStudentAdapter(
-            variant="XS",
-            num_classes=args.nb_classes,
-            window_size=args.input_size,   
-            in_chans=3,
-            device=device
-        )
-    elif args.student == "senvt-S":
-        print("Creating student: SENvT-S")
-        model = SenvtStudentAdapter(
-            variant="S",
+            variant=variant,
             num_classes=args.nb_classes,
             window_size=args.input_size,
             in_chans=3,
-            device=device
+            device=device,
+            ckpt_path=args.pretrained_student_path,
+            verbose_ckpt=True,
         )
-
+    
     else:
         raise ValueError(f"Unknown student model: {args.student}")
 
@@ -421,19 +565,20 @@ def main(args):
                 num_classes=args.nb_classes,
                 window_size=args.input_size,
                 in_chans=3,
-                ckpt_path="dataset/SENvT-u4/1000k_task4/best.pth",
+                ckpt_path=args.teacher_path,
+                # ckpt_path="dataset/SENvT-u4/1000k_task4/best.pth",
                 device=device
             )
-        elif args.model == "senvt-L":
-            print("Creating teacher: SENvT-L")
-            teacher_model = SenvtTeacherAdapter(
-                variant="L",
-                num_classes=args.nb_classes,
-                window_size=args.input_size,
-                in_chans=3,
-                ckpt_path="dataset/SENvT-u4/1000k_task4/best.pth",
-                device=device
-            )
+        # elif args.model == "senvt-L":
+        #     print("Creating teacher: SENvT-L")
+        #     teacher_model = SenvtTeacherAdapter(
+        #         variant="L",
+        #         num_classes=args.nb_classes,
+        #         window_size=args.input_size,
+        #         in_chans=3,
+        #         ckpt_path="dataset/SENvT-u4/1000k_task4/best.pth",
+        #         device=device
+        #     )
         elif args.model == "senvt-XS":
             print("Creating teacher: SENvT-XS")
             teacher_model = SenvtTeacherAdapter(
@@ -517,7 +662,7 @@ def main(args):
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
-            if args.model_ema:
+            if args.model_ema and model_ema is not None and 'model_ema' in checkpoint:
                 utils._load_checkpoint_for_ema(model_ema, checkpoint['model_ema'])
             if 'scaler' in checkpoint:
                 loss_scaler.load_state_dict(checkpoint['scaler'])
@@ -530,6 +675,15 @@ def main(args):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
+    best_epoch = 0
+    best_f1_macro = 0.0
+    best_precision_macro = 0.0
+    best_recall_macro = 0.0
+    
+    elapsed_training_time = 0.0
+    time_to_best = 0.0
+    max_memory_mb_all = 0.0
+    
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
@@ -542,19 +696,26 @@ def main(args):
             args = args,
         )
 
+        elapsed_training_time += train_stats.get("epoch_time", 0.0)
+        max_memory_mb_all = max(max_memory_mb_all, train_stats.get("max_memory_mb", 0.0))
+
         lr_scheduler.step(epoch)
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             for checkpoint_path in checkpoint_paths:
-                utils.save_on_master({
+                checkpoint_state = {
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
-                    'model_ema': get_state_dict(model_ema),
                     'scaler': loss_scaler.state_dict(),
                     'args': args,
-                }, checkpoint_path)
+                }
+                
+                if model_ema is not None:
+                    checkpoint_state['model_ema'] = get_state_dict(model_ema)
+                
+                utils.save_on_master(checkpoint_state, checkpoint_path)
              
 
         test_stats = evaluate(data_loader_val, model, device)
@@ -562,18 +723,29 @@ def main(args):
         
         if max_accuracy < test_stats["acc1"]:
             max_accuracy = test_stats["acc1"]
+            best_epoch = epoch
+            time_to_best = elapsed_training_time
+        
+            best_f1_macro = test_stats.get("f1_macro", 0.0)
+            best_precision_macro = test_stats.get("precision_macro", 0.0)
+            best_recall_macro = test_stats.get("recall_macro", 0.0)
+            
             if args.output_dir:
                 checkpoint_paths = [output_dir / 'best_checkpoint.pth']
                 for checkpoint_path in checkpoint_paths:
-                    utils.save_on_master({
+                    best_checkpoint_state = {
                         'model': model_without_ddp.state_dict(),
                         'optimizer': optimizer.state_dict(),
                         'lr_scheduler': lr_scheduler.state_dict(),
                         'epoch': epoch,
-                        'model_ema': get_state_dict(model_ema),
                         'scaler': loss_scaler.state_dict(),
                         'args': args,
-                    }, checkpoint_path)
+                    }
+                    
+                    if model_ema is not None:
+                        best_checkpoint_state['model_ema'] = get_state_dict(model_ema)
+                    
+                    utils.save_on_master(best_checkpoint_state, checkpoint_path)
             
         print(f'Max accuracy: {max_accuracy:.2f}%')
 
@@ -581,14 +753,26 @@ def main(args):
         if hasattr(criterion, "last") and criterion.last:
             kd_stats = {f'kd_{k}': v for k, v in criterion.last.items() if v is not None}
 
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     **{f'test_{k}': v for k, v in test_stats.items()},
-                     'epoch': epoch,
-                     'n_parameters': n_parameters,
-                     **kd_stats}
-        
-        
-        
+        # log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+        #              **{f'test_{k}': v for k, v in test_stats.items()},
+        #              'epoch': epoch,
+        #              'n_parameters': n_parameters,
+        #              **kd_stats}
+        log_stats = {
+            **{f'train_{k}': v for k, v in train_stats.items()},
+            **{f'test_{k}': v for k, v in test_stats.items()},
+            'epoch': epoch,
+            'n_parameters': n_parameters,
+            'best_acc1': max_accuracy,
+            'best_f1_macro': best_f1_macro,
+            'best_precision_macro': best_precision_macro,
+            'best_recall_macro': best_recall_macro,
+            'best_epoch': best_epoch,
+            'time_to_best': time_to_best,
+            'elapsed_training_time': elapsed_training_time,
+            'max_memory_mb_all': max_memory_mb_all,
+            **kd_stats
+        }
         
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
@@ -597,6 +781,46 @@ def main(args):
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
+
+    if args.output_dir and utils.is_main_process():
+        summary = {
+            "dataset": args.data,
+            "student": args.student,
+            "teacher": args.model if args.distillation_type != "none" else None,
+            "teacher_path": args.teacher_path if args.distillation_type != "none" else None,
+            "pretrained_student_path": args.pretrained_student_path if args.pretrained_student_path else None,
+            "distillation_type": args.distillation_type,
+            "distillation_alpha": args.distillation_alpha,
+            "distillation_tau": args.distillation_tau,
+            "input_size": args.input_size,
+            "patch_size": args.patch_size,
+            "reservoir_size": args.reservoir_size,
+            "reservoir_rank": args.reservoir_rank,
+            "input_rank": args.input_rank,
+            "patch_keep_ratio": args.patch_keep_ratio,
+            "innovation_threshold": args.innovation_threshold,
+            "innovation_target_ratio": args.innovation_target_ratio,
+            "innovation_budget_weight": args.innovation_budget_weight,
+            "innovation_hidden_dim": args.innovation_hidden_dim,
+            "innovation_min_keep": args.innovation_min_keep,
+            "batch_size": args.batch_size,
+            "epochs": args.epochs,
+            "lr": args.lr,
+            "seed": args.seed,
+            "n_parameters": n_parameters,
+            "best_acc1": max_accuracy,
+            "best_f1_macro": best_f1_macro,
+            "best_precision_macro": best_precision_macro,
+            "best_recall_macro": best_recall_macro,
+            "best_epoch": best_epoch,
+            "time_to_best": time_to_best,
+            "elapsed_training_time": elapsed_training_time,
+            "total_wall_time": total_time,
+            "max_memory_mb_all": max_memory_mb_all,
+        }
+
+        with (output_dir / "summary.json").open("w") as f:
+            json.dump(summary, f, indent=2)
 
 
 if __name__ == '__main__':

@@ -134,7 +134,12 @@ class PatchReservoir(nn.Module):
         cls_output = self.classification_head(x_cls)
         dist_output = self.distillation_head(x_dist)
         
+        # if self.training:
+        #     return F.log_softmax(cls_output, dim=1), F.log_softmax(dist_output, dim=1)
+        # else:
+        #     return F.log_softmax((cls_output + dist_output) / 2, dim=1)
+
         if self.training:
-            return F.log_softmax(cls_output, dim=1), F.log_softmax(dist_output, dim=1)
+            return cls_output, dist_output
         else:
-            return F.log_softmax((cls_output + dist_output) / 2, dim=1)
+            return (cls_output + dist_output) / 2

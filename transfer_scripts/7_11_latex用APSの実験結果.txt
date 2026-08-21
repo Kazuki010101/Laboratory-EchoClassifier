@@ -1,0 +1,61 @@
+\begin{table}[t]
+  \centering
+  \caption{PAMAP2におけるBaseとTransferの分類精度比較}
+  \label{tab:base_transfer_acc}
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
+  \renewcommand{\arraystretch}{1.08}
+  \resizebox{\linewidth}{!}{%
+  \begin{tabular}{lccc}
+    \hline
+    モデル & Base[\%] & Transfer[\%] & 差分 \\
+    \hline
+    ResNet-S & $58.80 \pm 5.56$ & $73.54 \pm 9.59$ & $+14.74$ \\
+    ResNet-M & $65.79 \pm 8.69$ & $78.96 \pm 5.06$ & $+13.17$ \\
+    ResNet-L & $62.28 \pm 10.21$ & $78.74 \pm 5.78$ & $+16.46$ \\
+    DeepConvLSTM-25 & $55.58 \pm 9.38$ & $58.23 \pm 5.88$ & $+2.65$ \\
+    DeepConvLSTM-50 & $61.26 \pm 13.52$ & $72.02 \pm 8.23$ & $+10.76$ \\
+    DeepConvLSTM-100 & $69.50 \pm 10.00$ & $76.36 \pm 11.51$ & $+6.86$ \\
+    MLPMixer & $80.66 \pm 5.85$ & $79.59 \pm 9.18$ & $-1.07$ \\
+    \hline
+    PRC-p32 & $58.49 \pm 6.20$ & $59.34 \pm 6.23$ & $+0.86$ \\
+    \prop{APS-LRGR-p32} & $\prop{61.56 \pm 5.55}$ & $\prop{65.25 \pm 7.85}$ & $\prop{+3.69}$ \\
+    PRC-p64 & $62.79 \pm 7.72$ & $63.49 \pm 7.89$ & $+0.70$ \\
+    \prop{APS-LRGR-p64} & $\prop{60.79 \pm 5.79}$ & $\prop{63.42 \pm 5.74}$ & $\prop{+2.63}$ \\
+    PRC-p128 & $65.36 \pm 8.16$ & $64.03 \pm 8.17$ & $-1.33$ \\
+    \prop{APS-LRGR-p128} & $\prop{62.23 \pm 6.34}$ & $\prop{66.51 \pm 8.63}$ & $\prop{+4.28}$ \\
+    \hline
+  \end{tabular}
+  }
+\end{table}
+
+\begin{table}[t]
+  \centering
+  \caption{各モデルの分類精度・モデルサイズ・計算量・推論遅延の比較}
+  \label{tab:model_efficiency}
+  \scriptsize
+  \setlength{\tabcolsep}{3pt}
+  \renewcommand{\arraystretch}{1.08}
+  \resizebox{\linewidth}{!}{%
+  \begin{tabular}{lcccccc}
+    \hline
+    モデル & Acc[\%] & Params[M] & Trainable[M] & Size[MB] & FLOPs[M] & Latency[ms] \\
+    \hline
+    ResNet-S & 73.54 & 0.015 & 0.015 & 0.083 & 4.341 & 1.12 \\
+    ResNet-M & 78.96 & 0.276 & 0.276 & 1.101 & 31.046 & 2.40 \\
+    ResNet-L & 78.74 & 1.097 & 1.097 & 4.239 & 122.533 & 3.13 \\
+    DeepConvLSTM-25 & 58.23 & 0.019 & 0.019 & 0.079 & 9.350 & 12.09 \\
+    DeepConvLSTM-50 & 72.02 & 0.075 & 0.075 & 0.291 & 36.179 & 11.53 \\
+    DeepConvLSTM-100 & 76.36 & 0.295 & 0.295 & 1.131 & 142.277 & 13.79 \\
+    MLPMixer & 79.59 & 3.255 & 3.255 & 12.452 & 624.773 & 16.21 \\
+    \hline
+    PRC-p32 & 59.34 & 1.051 & 0.019 & 4.014 & 0.062 & 245.48 \\
+    \prop{APS-LRGR-p32} & \prop{65.25} & \prop{0.117} & \prop{0.021} & \prop{0.453} & \prop{0.103} & \prop{3.03} \\
+    PRC-p64 & 63.49 & 1.092 & 0.028 & 4.171 & 0.102 & 122.80 \\
+    \prop{APS-LRGR-p64} & \prop{63.42} & \prop{0.159} & \prop{0.031} & \prop{0.611} & \prop{0.127} & \prop{2.30} \\
+    PRC-p128 & 64.03 & 1.194 & 0.066 & 4.557 & 0.163 & 5.77 \\
+    \prop{APS-LRGR-p128} & \prop{66.51} & \prop{0.260} & \prop{0.068} & \prop{0.997} & \prop{0.184} & \prop{2.02} \\
+    \hline
+  \end{tabular}
+  }
+\end{table}
