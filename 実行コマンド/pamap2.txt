@@ -1,0 +1,120 @@
+#---- SENvT-B から直接NNに蒸留（1段階）
+
+set -e
+
+TEACHER_B="dataset/SENvT-u4/1000k_task4/best.pth"
+OUT_ROOT=./runs/B_to_students_pamap2_epoch100
+mkdir -p "$OUT_ROOT"
+
+PAMAP2_ROOT="dataset/pamap2_100hz_w496_s248_chest16g"
+DROP_SUBJ=109
+VAL_RATIO=0.1
+
+TEST_SUBJECTS=(101 102 103 104 105 106 107 108)
+
+COMMON="--data PAMAP2 --pamap2_root $PAMAP2_ROOT \
+        --input-size 496 \
+        --model senvt-B --teacher-path $TEACHER_B \
+        --distillation-type soft --distillation-alpha 0.7 --distillation-tau 2.5 \
+        --epochs 100 --batch-size 128 \
+        --patch_size 16 --reservoir_size 1000 \
+        --mixup 0 --cutmix 0 --clip-grad 1.0 \
+        --val_ratio $VAL_RATIO \
+        --seed 0\
+        --unscale-lr --lr 5e-4 \
+        --warmup-epochs 1 --warmup-lr 5e-5 --min-lr 1e-5"
+
+
+if [ -n "$DROP_SUBJ" ]; then
+  COMMON="$COMMON --pamap2_drop_subj $DROP_SUBJ"
+fi
+
+students=(
+  DeepConvLSTM25
+  DeepConvLSTM50
+  DeepConvLSTM100
+  Resnet_S
+  Resnet_M
+  Resnet_L
+  MLPMixer
+  PRC
+  PESAC
+)
+
+for test_subj in "${TEST_SUBJECTS[@]}"; do
+  for s in "${students[@]}"; do
+    OUT_DIR="$OUT_ROOT/test${test_subj}/${s}"
+    mkdir -p "$OUT_DIR"
+
+    echo "[PAMAP2][test=${test_subj}] [B] -> $s  ==>  $OUT_DIR"
+
+    python -u main_pamap2.py $COMMON \
+      --fold_test_subj "$test_subj" \
+      --student "$s" \
+      --output_dir "$OUT_DIR" \
+      2>&1 | tee "$OUT_DIR/console.log"
+
+    echo "exit_code=${PIPESTATUS[0]}" > "$OUT_DIR/exit_code.txt"
+  done
+done
+
+##---二段階目の蒸留（S～NN）
+
+set -e
+
+# ========= Teacher (SENvT-S) =========
+TEACHER_S="./runs/First/SHL2023_senvtB_to_S/best_checkpoint.pth"
+
+# ========= PAMAP2 settings =========
+PAMAP2_ROOT="dataset/pamap2_100hz_w496_s248_chest16g"
+DROP_SUBJ=109
+VAL_RATIO=0.1
+
+TEST_SUBJECTS=(101 102 103 104 105 106 107 108)
+
+# ========= Students（Transformerは外す） =========
+students=(
+  DeepConvLSTM25
+  DeepConvLSTM50
+  DeepConvLSTM100
+  Resnet_S
+  Resnet_M
+  Resnet_L
+  MLPMixer
+  PRC
+  PESAC
+)
+
+# ========= Output root (階層化) =========
+OUT_ROOT="./runs/S_to_students_pamap2_epoch100"
+mkdir -p "$OUT_ROOT"
+
+# ========= Common args =========
+COMMON="--data PAMAP2 --pamap2_root $PAMAP2_ROOT \
+        --input-size 496 \
+        --model senvt-S --teacher-path $TEACHER_S \
+        --distillation-type soft --distillation-alpha 0.7 --distillation-tau 2.5 \
+        --epochs 100 --batch-size 128 \
+        --patch_size 16 --reservoir_size 1000 \
+        --mixup 0 --cutmix 0 --clip-grad 1.0 \
+        --val_ratio $VAL_RATIO \
+        --seed 0\
+        --unscale-lr --lr 5e-4 \
+        --warmup-epochs 1 --warmup-lr 5e-5 --min-lr 1e-5"
+
+if [ -n "$DROP_SUBJ" ]; then
+  COMMON="$COMMON --pamap2_drop_subj $DROP_SUBJ"
+fi
+
+for test_subj in "${TEST_SUBJECTS[@]}"; do
+  for s in "${students[@]}"; do
+    OUT_DIR="$OUT_ROOT/test${test_subj}/${s}"
+    mkdir -p "$OUT_DIR"
+    echo "[PAMAP2][test=${test_subj}] [S] -> ${s}  ==>  ${OUT_DIR}"
+    python -u main_pamap2.py $COMMON \
+      --fold_test_subj "$test_subj" \
+      --student "$s" \
+      --output_dir "$OUT_DIR" \
+      2>&1 | tee "$OUT_DIR/console.log"
+  done
+done

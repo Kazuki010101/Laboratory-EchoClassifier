@@ -1,0 +1,214 @@
+# ==================================================
+# Python
+# ==================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ==================================================
+# Virtual environments
+# ==================================================
+
+.venv/
+venv/
+env/
+ENV/
+.conda/
+conda-env/
+.python-version
+
+# ==================================================
+# Jupyter
+# ==================================================
+
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# ==================================================
+# Environment variables and secrets
+# ==================================================
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# ==================================================
+# IDE / OS
+# ==================================================
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# ==================================================
+# SHL and other datasets
+# Large/raw/processed data must not be committed
+# ==================================================
+
+dataset/
+datasets/
+data/
+
+SHL_2023/
+SHL_2024/
+SHL/
+PAMAP2/
+PAMAP/
+ADL/
+REALWORLD/
+WISDM/
+CAPTURE/
+
+# ==================================================
+# Model checkpoints and learned weights
+# ==================================================
+
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.safetensors
+*.h5
+
+checkpoints/
+pretrained/
+weights/
+
+# ==================================================
+# Experiment outputs
+# ==================================================
+
+experiments/
+outputs/
+output/
+results/
+runs/
+wandb/
+lightning_logs/
+tensorboard/
+mlruns/
+
+# ==================================================
+# Logs and process files
+# ==================================================
+
+*.log
+*.out
+*.err
+*.pid
+nohup.out
+
+logs/
+
+# ==================================================
+# GPU / profiling outputs
+# ==================================================
+
+gpu_power.csv
+energy_summary.json
+train_stdout.log
+profile*.json
+profile*.csv
+memory_profile/
+profiler/
+
+# ==================================================
+# Generated numerical arrays and caches
+# ==================================================
+
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.joblib
+*.memmap
+
+cache/
+.cache/
+
+# ==================================================
+# Temporary and backup files
+# ==================================================
+
+tmp/
+temp/
+temporary/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+
+# ==================================================
+# Archives
+# ==================================================
+
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# ==================================================
+# Build / package outputs
+# ==================================================
+
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ==================================================
+# LaTeX generated files
+# Keep .tex and .bib source files
+# ==================================================
+
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+
+# ==================================================
+# Generated paper figures
+#
+# Source code for figures is committed, but generated
+# experiment figures are kept outside Git.
+# ==================================================
+
+paper_figures/generated/
+figures/generated/
+
+# ==================================================
+# Local Codex / ChatGPT work files
+# ==================================================
+
+.codex/
+.openai/

@@ -1,0 +1,174 @@
+conda create -n mfm311 python=3.11 -y && conda activate mfm311 && \
+conda install -y numpy=1.25.2 && \
+pip install huggingface-hub==0.24.0 transformers==4.33.3 momentfm==0.1.4 && \
+conda env export > environment.yml
+
+
+conda activate mfm311
+pip install ipykernel
+python -m ipykernel install --user --name mfm311 --display-name "Python (mfm311)"
+pip install pandas scikit-learn timm
+
+
+----------------------------------------------------------------------------------------------
+
+教師モデルmoment-large -> 生徒モデル moment-small
+python main.py --data SHL2023 --student moment-small --model moment-large --distillation-type soft --distillation-alpha 0.5 --distillation-tau 2.0 --epochs 50 --batch-size 64 --output_dir ./runs/shl2024_moment_distill --cutmix 1.0 --mixup-mode batch --flip_on
+
+----------------------------------------------------------------------------------------------
+ベースライン(蒸留無し・比較用）
+
+python main.py \
+  --data SHL2023 \
+  --student moment-small \
+  --model moment-large \
+  --distillation-type none \
+  --epochs 50 \
+  --batch-size 64 \
+  --output_dir ./runs/shl2023_baseline_no_kd \
+  --ThreeAugment \
+  --mixup 0.8 \
+  --cutmix 1.0 \
+  --mixup-mode batch \
+  --flip_on
+
+蒸留あり（基本：soft KD / α=0.5, τ=2.0）
+保存先　：　srv11/蒸留/EchoAttnNet/runs/shl2023_moment_large2small_soft
+python main.py \
+  --data SHL2023 \
+  --student moment-small \
+  --model moment-large \
+  --distillation-type soft \
+  --distillation-alpha 0.5 \
+  --distillation-tau 2.0 \
+  --epochs 50 \
+  --batch-size 64 \
+  --output_dir ./runs/shl2023_moment_large2small_soft \
+  --mixup 0.8 \
+  --cutmix 1.0 \
+  --mixup-mode batch \
+  --flip_on
+
+蒸留あり（安定寄り：α=0.4, τ=3.0 の代替）
+
+python main.py \
+  --data SHL2023 \
+  --student moment-small \
+  --model moment-large \
+  --distillation-type soft \
+  --distillation-alpha 0.4 \
+  --distillation-tau 3.0 \
+  --epochs 80 \
+  --batch-size 64 \
+  --lr 3e-4 \
+  --warmup-epochs 5 \
+  --output_dir ./runs/shl2023_moment_large2small_soft_slow \
+  --ThreeAugment \
+  --mixup 0.8 \
+  --cutmix 1.0 \
+  --mixup-mode batch \
+  --flip_on
+
+
+
+---------------------------------------------------------------------------------------------
+
+Senvt-b -> senvt-xs, soft KD
+保存先：srv11/蒸留/EchoAttnNet/runs/shl2023_senvtB_to_XS
+失敗：Epoch０：670/2751でLossがnanに
+python main.py \
+  --data SHL2023 \
+  --input-size 496 \
+  --student senvt-XS \
+  --model senvt-B \
+  --distillation-type soft \
+  --distillation-alpha 0.2 \
+  --distillation-tau 2.0 \
+  --epochs 50 \
+  --batch-size 64 \
+  --lr 5e-4 \
+  --warmup-epochs 5 \
+  --output_dir ./runs/shl2023_senvtB_to_XS
+
+Senvt-b -> senvt-xs, soft KD
+保存先：srv11/蒸留/EchoAttnNet/runs/shl2023_senvtB_to_XS
+
+python main.py \
+  --data SHL2023 \
+  --input-size 496 \
+  --student senvt-XS \
+  --model senvt-B \
+  --teacher-path dataset/SENvT-u4/1000k_task4/best.pth \
+  --distillation-type soft \
+  --distillation-alpha 0.5 \
+  --distillation-tau 2.0 \
+  --epochs 50 \
+  --batch-size 64 \
+  --lr 3e-4 \
+  --warmup-epochs 10 \
+  --mixup 0 --cutmix 0 \
+  --clip-grad 1.0 \
+  --output_dir ./runs/SHL2023_senvtB_to_XS
+
+Senvt-b -> senvt-s, soft KD
+保存先：srv11/蒸留/EchoAttnNet/runs/shl2023_senvtB_to_S
+
+python main.py \
+  --data SHL2023 \
+  --input-size 496 \
+  --student senvt-S \
+  --model senvt-B \
+  --teacher-path dataset/SENvT-u4/1000k_task4/best.pth \
+  --distillation-type soft \
+  --distillation-alpha 0.5 \
+  --distillation-tau 2.0 \
+  --epochs 50 \
+  --batch-size 64 \
+  --lr 3e-4 \
+  --warmup-epochs 10 \
+  --mixup 0 --cutmix 0 \
+  --clip-grad 1.0 \
+  --output_dir ./runs/SHL2023_senvtB_to_S
+
+
+---------------------------------------------------------------------------------------------
+moment-教師の学習（チューニング）
+
+
+# MOMENT-1-large を SHL-2023 で微調整
+
+python moment_train_shl2023.py \
+  --acc-path ../SHL_2023/SHL/100hz_5.0s_overlap0.0s/SHL/train/Hips_Acc.npy \
+  --lab-path ../SHL_2023/SHL/100hz_5.0s_overlap0.0s/SHL/train/Hips_Label.npy \
+  --epochs 50 --batch-size 128 --lr 1e-4
+
+python moment_train_shl2023.py \
+  --acc-path ../SHL_2023/SHL/100hz_5.0s_overlap0.0s/SHL/train/Hips_Acc.npy \
+  --lab-path ../SHL_2023/SHL/100hz_5.0s_overlap0.0s/SHL/train/Hips_Label.npy \
+  --epochs 50 \
+  --batch-size 1024 \
+  --lr 3e-5 \
+  --finetune
+
+
+ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
+
+# E-DTD実行コマンド
+
+python main_di.py \
+  --data SHL2023 \
+  --input-size 496 \
+  --student senvt-S \
+  --model senvt-B \
+  --teacher-path dataset/SENvT-u4/1000k_task4/best.pth \
+  --distillation-type soft \
+  --distillation-alpha 0.5 \
+  --distillation-tau 2.0 \
+  --epochs 50 \
+  --batch-size 64 \
+  --lr 3e-4 \
+  --warmup-epochs 10 \
+  --mixup 0 --cutmix 0 \
+  --clip-grad 1.0 \
+  --use-edtd \
+  --output_dir ./runs/SHL2023_senvtB_to_S_EDTD
