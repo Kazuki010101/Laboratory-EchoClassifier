@@ -89,9 +89,9 @@ TGECは31パッチから16パッチを選択し、残り15パッチを1個の要
 T_d^2
 D_{\mathrm{KL}}
 \left(
-\operatorname{softmax}\left(\frac{z_T}{T_d}\right)
+\mathrm{softmax}\left(\frac{z_T}{T_d}\right)
 \,\middle\|\,
-\operatorname{softmax}\left(\frac{z_S}{T_d}\right)
+\mathrm{softmax}\left(\frac{z_S}{T_d}\right)
 \right)
 ```
 
@@ -415,13 +415,13 @@ Encoder layerを $\ell$、layer $\ell$ における31パッチの教師重要度
 M_{16}^{(\ell)}
 =
 \sum_{
-i\in\operatorname{Top16}
+i\in\mathrm{Top16}
 \left(\mathbf{q}^{(\ell)}\right)
 }
 q_i^{(\ell)}
 ```
 
-ここで、$\operatorname{Top16}(\mathbf{q}^{(\ell)})$ は、layer $\ell$ の教師重要度が高い上位16パッチのインデックス集合を表す。  
+ここで、$\mathrm{Top16}(\mathbf{q}^{(\ell)})$ は、layer $\ell$ の教師重要度が高い上位16パッチのインデックス集合を表す。  
 $M_{16}^{(\ell)}$ が大きいほど、教師の重要度が少数のパッチに集中しており、上位16パッチの選択によって教師が重視する情報を保持しやすい。
 
 31パッチの重要度が完全に一様である場合、上位16パッチの重要度の合計は次の値となる。
@@ -774,7 +774,7 @@ seed = 0, 1, 2
 標準偏差には、次式で表される標本標準偏差を用いる。
 
 ```math
-\operatorname{SD}(x)
+\mathrm{SD}(x)
 =
 \sqrt{
 \frac{1}{S-1}
