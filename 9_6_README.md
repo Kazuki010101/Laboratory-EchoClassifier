@@ -71,37 +71,37 @@ TGECは31パッチから16パッチを選択し、残り15パッチを1個の要
 
 ### 3.1 分類損失
 
-正解ラベルを$y$、生徒の分類確率を$p_S$とすると、分類損失は次式である。
+正解ラベルを $y$、生徒の分類確率を $p_S$ とすると、分類損失は次式である。
 
-$$
+```math
 \mathcal{L}_{\mathrm{CE}}
 =
 -\sum_{c=1}^{C} y_c \log p_{S,c}
-$$
+```
 
 ### 3.2 通常のlogit蒸留
 
-教師と生徒のlogitをそれぞれ$z_T,z_S$、蒸留温度を$T_d$とすると、logit蒸留損失は次式である。
+教師と生徒のlogitをそれぞれ $z_T$、$z_S$、蒸留温度を $T_d$ とすると、logit蒸留損失は次式である。
 
-$$
+```math
 \mathcal{L}_{\mathrm{KD}}
 =
 T_d^2
 D_{\mathrm{KL}}
 \left(
 \operatorname{softmax}\left(\frac{z_T}{T_d}\right)
-\;\middle\|\;
+\,\middle\|\,
 \operatorname{softmax}\left(\frac{z_S}{T_d}\right)
 \right)
-$$
+```
 
-本実験では$α=0.7$、$T_d=2.5$を使用する。
+本実験では $\alpha=0.7$、$T_d=2.5$ を使用する。
 
 ### 3.3 教師誘導パッチ選択
 
-SENvTのencoder layer $\ell$において、CLSから時刻$t$へのAttention×Value寄与を次のように定義する。
+SENvTのencoder layer $\ell$ において、CLSから時刻 $t$ へのAttentionとValueの寄与を次式で定義する。
 
-$$
+```math
 g_t^{(\ell)}
 =
 W_O^{(\ell)}
@@ -110,93 +110,99 @@ a_{\mathrm{CLS},t}^{(\ell,1)}v_t^{(\ell,1)};
 \ldots;
 a_{\mathrm{CLS},t}^{(\ell,H)}v_t^{(\ell,H)}
 \right]
-$$
+```
 
-生徒のパッチ$i$に対応する16時刻を$P_i$とし、時間寄与を集約する。
+生徒のパッチ $i$ に対応する16時刻の集合を $P_i$ とし、時間位置ごとの寄与を集約する。
 
-$$
+```math
 G_i^{(\ell)}
 =
 \sum_{t\in P_i} g_t^{(\ell)}
-$$
+```
 
-教師のパッチ重要度分布$q^{(\ell)}$は次式で求める。
+教師のパッチ重要度分布 $q^{(\ell)}$ を次式で求める。
 
-$$
+```math
 q_i^{(\ell)}
 =
 \frac{\left\|G_i^{(\ell)}\right\|_2}
 {\sum_{j=1}^{31}\left\|G_j^{(\ell)}\right\|_2}
-$$
+```
 
-生徒routerが出力するscoreを$s_i$、温度を$T_s$とすると、生徒のパッチ分布は
+生徒routerが出力するスコアを $s_i$、温度を $T_s$ とすると、生徒のパッチ分布は次式となる。
 
-$$
+```math
 p_i
 =
 \frac{\exp(s_i/T_s)}
 {\sum_{j=1}^{31}\exp(s_j/T_s)}
-$$
+```
 
-である。教師の分布$q$を生徒の分布$p$へ蒸留する。
+教師分布 $q$ を生徒分布 $p$ へ蒸留するため、経路蒸留損失を次式で定義する。
 
-$$
+```math
 \mathcal{L}_{\mathrm{route}}
 =
-D_{\mathrm{KL}}(q\|p)
-$$
+D_{\mathrm{KL}}\left(q\,\middle\|\,p\right)
+```
 
 ### 3.4 省略情報の凝縮
 
-選択されなかったパッチ集合を$O$、パッチ埋め込みを$e_i\in\mathbb{R}^{16}$とする。省略パッチの平均とRMSを求める。
+選択されなかったパッチの集合を $\mathcal{O}$、パッチ埋め込みを $e_i\in\mathbb{R}^{16}$ とする。省略パッチの平均とRMSを次式で求める。
 
-$$
-\mu_O
+```math
+\mu_{\mathcal{O}}
 =
-\frac{1}{|O|}
-\sum_{i\in O}e_i
-$$
+\frac{1}{|\mathcal{O}|}
+\sum_{i\in\mathcal{O}}e_i
+```
 
-$$
-\rho_O
+```math
+\rho_{\mathcal{O}}
 =
 \sqrt{
-\frac{1}{|O|}
-\sum_{i\in O}e_i^{\odot 2}
+\frac{1}{|\mathcal{O}|}
+\sum_{i\in\mathcal{O}}e_i^{\odot 2}
 +\varepsilon
 }
-$$
+```
 
-平均とRMSをMLPへ入力し、1個の要約トークンを生成する。
+平均とRMSをMLPへ入力し、一つの要約トークンを生成する。
 
-$$
+```math
 z_{\mathrm{sum}}
 =
-g_{\phi}([\mu_O;\rho_O])
+g_{\phi}
+\left(
+[\mu_{\mathcal{O}};\rho_{\mathcal{O}}]
+\right)
 \in\mathbb{R}^{16}
-$$
+```
 
-教師側の省略パッチ情報を固定射影した目標を$\widetilde{G}_O$とすると、内容損失は次式である。
+教師側の省略パッチ情報を固定射影した目標を $\widetilde{G}_{\mathcal{O}}$ とすると、内容損失は次式となる。
 
-$$
+```math
 \mathcal{L}_{\mathrm{content}}
 =
 1-
-\cos\left(z_{\mathrm{sum}},\widetilde{G}_O\right)
-$$
+\cos\left(
+z_{\mathrm{sum}},
+\widetilde{G}_{\mathcal{O}}
+\right)
+```
 
 ### 3.5 全損失
 
-TGECのUser1学習時の全損失は次式である。
+TGECのUser~1学習時の全損失は次式である。
 
-$$
+```math
 \mathcal{L}
 =
 (1-\alpha)\mathcal{L}_{\mathrm{CE}}
 +\alpha\mathcal{L}_{\mathrm{KD}}
 +\lambda_{\mathrm{route}}\mathcal{L}_{\mathrm{route}}
 +\lambda_{\mathrm{content}}\mathcal{L}_{\mathrm{content}}
-$$
+```
 
 現在の設定は次のとおりである。
 
