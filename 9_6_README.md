@@ -1028,3 +1028,240 @@ experiment_name/
 6. **再現性**：有望条件について3 Seedの平均と標準偏差を報告する。
 
 望ましい結果は、TGECがTG-Skipより高精度となり、PRC-KDに近い精度を維持しながら、通常PRCより少ないReservoir更新回数と短いLatencyを実現することである。
+
+## 20. 追加実験の目的
+
+Seed 0だけの結果では、初期値や学習時の乱数によって得られた偶然の差を除外できない。そのため、提案手法の中心比較についてSeed 1・2を追加し、Seed 0・1・2の平均と標本標準偏差を報告する。
+
+また、現在の`patch_size=16`は維持したまま、保持パッチ数を16個から24個へ増やす。入力長496、patch size 16、stride 16では、入力は31パッチとなる。
+
+```math
+N=496/16=31
+```
+
+現在の保持率0.5では次の16パッチを保持する。
+
+```math
+K=\lceil31\times0.5\rceil=16
+```
+
+追加条件では保持率0.75を使用するため、24パッチを保持する。
+
+```math
+K=\lceil31\times0.75\rceil=24
+```
+
+これはpatch sizeを変更する実験ではなく、同じ31パッチからReservoirへ渡すパッチ数を増加させる実験である。
+
+---
+
+## 21. 追加ファイル
+
+次のファイルを`9_6_README.md`と同じリポジトリへ追加する。
+
+```text
+scripts/shl2023_senvt_kd/
+├── 25_run_additional_prc_experiments.sh
+├── 27_profile_and_collect_prc_results.sh
+├── profile_prc_models_v2.py
+└── collect_prc_results.py
+```
+
+既存の`prc_efficiency.json`およびSeed 0の学習結果は削除・上書きしない。
+
+---
+
+## 22. 複数Seed実験
+
+### 22.1 推奨する最小構成
+
+最初に次の4条件をSeed 1・2で追加する。
+
+```text
+PRC-KD
+APS-KD
+TG-Skip
+TGEC
+```
+
+これにより、次の主要比較を3 Seedで評価できる。
+
+| 比較 | 検証内容 |
+|---|---|
+| PRC-KD vs APS-KD | パッチ削減の影響 |
+| APS-KD vs TG-Skip | 教師誘導routerの効果 |
+| TG-Skip vs TGEC | 非選択パッチ凝縮の効果 |
+| PRC-KD vs TGEC | フルパッチPRCに対する精度・効率のトレードオフ |
+
+実行コマンドは次のとおりである。
+
+```bash
+cd "/home/jovyan/work/srv11/蒸留/EchoClassifier"
+
+SEEDS="1 2" \
+bash scripts/shl2023_senvt_kd/25_run_additional_prc_experiments.sh \
+  multiseed full core
+```
+
+途中で停止した場合は次のように再開する。
+
+```bash
+cd "/home/jovyan/work/srv11/蒸留/EchoClassifier"
+
+SEEDS="1 2" RESUME_PARTIAL=1 \
+bash scripts/shl2023_senvt_kd/25_run_additional_prc_experiments.sh \
+  multiseed full core
+```
+
+`summary.json`または`evaluation_summary.json`が存在する完了済み条件は自動的にスキップされる。`FORCE=1`は既存結果を再実行するため、通常は使用しない。
+
+### 22.2 全6条件を3 Seed化する場合
+
+PRC-CEとAPS-CEを含む全6条件を追加する場合は、`core`を`all`へ変更する。
+
+```bash
+SEEDS="1 2" \
+bash scripts/shl2023_senvt_kd/25_run_additional_prc_experiments.sh \
+  multiseed full all
+```
+
+計算時間に余裕があれば全6条件を推奨する。ただし、論文の中心仮説の検証には、まず`core`の4条件を優先する。
+
+### 22.3 Seedの扱い
+
+追加Seedでは、User1学習だけでなくUser2/User3 Fine-tuningも同じSeed番号で実行する。一方、User2/User3のtrain/validation/test分割はSeed 0で作成済みの固定分割を全条件で再利用する。
+
+```text
+学習乱数：Seedごとに変更
+データ分割：全条件・全Seedで固定
+```
+
+したがって、`16_prepare_user23_downstream_split.sh`をSeed 1・2ごとに再実行してはならない。
+
+---
+
+## 23. 24パッチ保持条件
+
+まずSeed 0でAPS-KD、TG-Skip、TGECの保持数を24パッチへ増やす。
+
+```bash
+cd "/home/jovyan/work/srv11/蒸留/EchoClassifier"
+
+SEEDS="0" \
+bash scripts/shl2023_senvt_kd/25_run_additional_prc_experiments.sh \
+  keep24 full core
+```
+
+出力名には`ps16_k24`を付けるため、既存の16パッチ条件と衝突しない。
+
+```text
+experiments/shl2023_senvt_kd/
+├── student_distillation/prc_condensation/
+│   ├── tgec_seed0/                 # 既存：16パッチ
+│   └── tgec_ps16_k24_seed0/        # 追加：24パッチ
+├── student_finetune/user23/
+│   ├── tgec_seed0/
+│   └── tgec_ps16_k24_seed0/
+└── heldout_evaluation/user23_test/
+    ├── tgec_seed0/
+    └── tgec_ps16_k24_seed0/
+```
+
+24パッチ条件でも効果が確認でき、複数Seedを追加する場合は次を実行する。
+
+```bash
+SEEDS="1 2" \
+bash scripts/shl2023_senvt_kd/25_run_additional_prc_experiments.sh \
+  keep24 full core
+```
+
+---
+
+## 24. 効率指標の再測定
+
+既存の`profile_prc_models.py`では、モデルごとにReservoir重みが`Parameter`または`buffer`として登録されている違いにより、`parameters`の比較が公平にならない。また、複数モデルを同時にGPU上へ保持すると、後に測定するモデルほどピークメモリが大きくなる可能性がある。
+
+`profile_prc_models_v2.py`では次を修正する。
+
+- 学習可能パラメータ数を`trainable_parameters`として分離する。
+- Parameterとbufferを含む状態要素数を`model_state_elements`として報告する。
+- モデル状態の容量を`model_state_size_mb`として報告する。
+- 各モデルを個別にGPUへ載せ、測定後に解放する。
+- Latencyの平均、中央値、標準偏差を保存する。
+
+学習プロセスが動いていないことを確認してから、次を実行する。
+
+```bash
+ps -u "$USER" -o pid,etime,cmd | grep main.py | grep -v grep
+```
+
+何も表示されなければ、効率測定と結果集計を実行する。
+
+```bash
+cd "/home/jovyan/work/srv11/蒸留/EchoClassifier"
+
+bash scripts/shl2023_senvt_kd/27_profile_and_collect_prc_results.sh
+```
+
+出力は次のとおりである。
+
+```text
+experiments/shl2023_senvt_kd/results/
+├── prc_efficiency.json              # 既存結果：保持
+├── prc_efficiency_ps16_k16.json     # 修正版：16パッチ
+├── prc_efficiency_ps16_k24.json     # 修正版：24パッチ
+├── prc_combined_results.csv         # Seedごとの全指標
+├── prc_seed_summary.csv             # 平均・標準偏差
+└── prc_seed_summary.md              # 論文表作成用Markdown
+```
+
+`prc_combined_results.csv`には次の指標を統合する。
+
+- User1 validation Accuracy
+- User2/User3 Fine-tuning validation Accuracy
+- 独立test Accuracy
+- 独立test Macro Precision
+- 独立test Macro Recall
+- 独立test Macro F1
+- test loss
+- 保持パッチ数、保持率、route entropy
+- 学習可能パラメータ数
+- Parameterとbufferを含むモデル状態要素数・容量
+- Latency平均・中央値
+- ピークGPUメモリ
+- Reservoir更新トークン数
+- 推定支配的MACs
+
+Accuracy、Macro Precision、Macro Recall、Macro F1について、3 Seedが揃っている条件は次の形式で出力する。
+
+```text
+平均 ± 標本標準偏差
+```
+
+Latencyは学習Seedのばらつきではなく実行環境の影響を受けるため、Seedごとの平均として扱わず、同一条件で行ったプロファイル値を掲載する。
+
+---
+
+## 25. 推奨実行順
+
+現在実行中のSeed 0 Fine-tuningと独立testを最後まで完了させた後、次の順で進める。
+
+```bash
+cd "/home/jovyan/work/srv11/蒸留/EchoClassifier"
+
+# 1. Seed 1・2：中心4条件
+SEEDS="1 2" \
+bash scripts/shl2023_senvt_kd/25_run_additional_prc_experiments.sh \
+  multiseed full core
+
+# 2. 24パッチ：まずSeed 0
+SEEDS="0" \
+bash scripts/shl2023_senvt_kd/25_run_additional_prc_experiments.sh \
+  keep24 full core
+
+# 3. GPU学習が終了してから効率測定と表の作成
+bash scripts/shl2023_senvt_kd/27_profile_and_collect_prc_results.sh
+```
+
+Seed 0でTGECがTG-Skipを上回っていない場合は、すぐにSeed 1・2へ進まず、summary token、route loss、content lossおよび選択パッチを先に検査する。
+

@@ -20,6 +20,7 @@ dependencies:
   - liblzma=5.8.3
   - libnsl=2.0.1
   - libopenblas=0.3.34
+  - libpython=3.11.16
   - libsqlite=3.53.4
   - libstdcxx=16.2.0
   - libstdcxx-ng=16.2.0
