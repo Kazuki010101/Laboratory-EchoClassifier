@@ -164,8 +164,32 @@ def get_args_parser():
     parser.add_argument('--resume', default='', help='resume from checkpoint')
     parser.add_argument('--finetune', default='',
                         help='load model weights only; reset optimizer, scheduler, and epoch')
-    parser.add_argument('--split-indices', default='',
-                        help='npz containing fixed train/val/test indices')
+    parser.add_argument(
+        '--split-indices',
+        default='',
+        help='npz containing fixed train/val/test indices'
+    )
+    
+    parser.add_argument(
+        '--pamap2-root',
+        default='',
+        type=str,
+        help='directory containing PAMAP2 X.npy, Y.npy, and groups.npy'
+    )
+    
+    parser.add_argument(
+        '--pamap2-drop-subj',
+        default=109,
+        type=int,
+        help='PAMAP2 subject excluded from split generation (default: 109)'
+    )
+    
+    parser.add_argument(
+        '--fold-test-subj',
+        default=101,
+        type=int,
+        help='held-out PAMAP2 test subject identifying a fixed LOSO fold'
+    )
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
@@ -239,10 +263,25 @@ def get_args_parser():
         type=int,
     )
     
-    parser.add_argument('--data', default='SHL', choices=['SHL2023', 'SHL2023_user23',
-                        'SHL2023_user23_finetune', 'SHL2023_user23_test',
-                        'SHL2024', 'ADL', 'PAMAP', 'REALWORLD', 'WISDM',
-                        'CAPTURE', 'SHL2023_test'])
+    parser.add_argument(
+        '--data',
+        default='SHL',
+        choices=[
+            'SHL2023',
+            'SHL2023_user23',
+            'SHL2023_user23_finetune',
+            'SHL2023_user23_test',
+            'SHL2024',
+            'ADL',
+            'PAMAP',
+            'PAMAP2_train',
+            'PAMAP2_test',
+            'REALWORLD',
+            'WISDM',
+            'CAPTURE',
+            'SHL2023_test',
+        ]
+    )
     parser.add_argument('--flip_on', action='store_true', default=False)
     
     return parser
@@ -264,11 +303,28 @@ def main(args):
 
     dataset_train, dataset_val, args.nb_classes = build_dataset(args=args)#変更
 
-    if args.data in {"SHL2023_user23", "SHL2023_user23_test"} and not args.eval:
-        raise ValueError(f"{args.data} is evaluation-only; add --eval")
+    if args.data in {
+        "SHL2023_user23",
+        "SHL2023_user23_test"
+    } and not args.eval:
+        raise ValueError(
+            f"{args.data} is evaluation-only; add --eval"
+        )
+    
     if args.data == "SHL2023_user23_finetune" and args.eval:
-        raise ValueError("Use SHL2023_user23_test for final evaluation")
-
+        raise ValueError(
+            "Use SHL2023_user23_test for final evaluation"
+        )
+    
+    if args.data == "PAMAP2_test" and not args.eval:
+        raise ValueError(
+            "PAMAP2_test is evaluation-only; add --eval"
+        )
+    
+    if args.data == "PAMAP2_train" and args.eval:
+        raise ValueError(
+            "Use PAMAP2_test for final evaluation"
+        )
     print("===== Dataset Debug =====")
     print("device:", device)
     print("num_train:", len(dataset_train))
@@ -722,14 +778,49 @@ def main(args):
                 loss_scaler.load_state_dict(checkpoint['scaler'])
         lr_scheduler.step(args.start_epoch)
     if args.eval:
-        test_stats = evaluate(data_loader_val, model, device)
-        print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
+        test_stats = evaluate(
+            data_loader_val,
+            model,
+            device,
+            return_predictions=True,
+        )
+    
+        predictions = test_stats.pop("_predictions")
+        targets = test_stats.pop("_targets")
+    
+        print(
+            f"Accuracy of the network on the "
+            f"{len(dataset_val)} test images: "
+            f"{test_stats['acc1']:.1f}%"
+        )
+    
         if args.output_dir and utils.is_main_process():
-            output_dir.mkdir(parents=True, exist_ok=True)
-            with (output_dir / "evaluation_summary.json").open("w") as f:
-                json.dump({"dataset": args.data, "student": args.student,
-                           "checkpoint": args.resume, "num_samples": len(dataset_val),
-                           **test_stats}, f, indent=2)
+            output_dir.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+    
+            with (
+                output_dir / "evaluation_summary.json"
+            ).open("w") as f:
+                json.dump(
+                    {
+                        "dataset": args.data,
+                        "student": args.student,
+                        "checkpoint": args.resume,
+                        "num_samples": len(dataset_val),
+                        **test_stats,
+                    },
+                    f,
+                    indent=2,
+                )
+    
+            np.savez_compressed(
+                output_dir / "predictions.npz",
+                predictions=predictions,
+                targets=targets,
+            )
+    
         return
 
     print(f"Start training for {args.epochs} epochs")

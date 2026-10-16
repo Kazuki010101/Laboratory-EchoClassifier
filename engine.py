@@ -391,7 +391,7 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device):
+def evaluate(data_loader, model, device, return_predictions=False):
     criterion = torch.nn.CrossEntropyLoss()
 
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -501,5 +501,8 @@ def evaluate(data_loader, model, device):
     stats["precision_macro"] = float(precision_macro)
     stats["recall_macro"] = float(recall_macro)
     stats["f1_macro"] = float(f1_macro)
+    if return_predictions:
+        stats["_predictions"] = all_preds
+        stats["_targets"] = all_targets
     
     return stats

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+PAMAP2_ROOT="${PAMAP2_ROOT:-$PROJECT_ROOT/dataset/pamap2_100hz_w496_s248_chest16g}"
+EXPERIMENT_ROOT="${PAMAP2_EXPERIMENT_ROOT:-$PROJECT_ROOT/experiments/pamap2_tgec}"
+SPLIT_ROOT="$EXPERIMENT_ROOT/data_splits"
+SPLIT_FILE="$SPLIT_ROOT/pamap2_loso_splits.npz"
+SPLIT_MANIFEST="$SPLIT_ROOT/pamap2_loso_splits.json"
+
+SENVT_B_PRETRAINED="${SENVT_B_PRETRAINED:-$PROJECT_ROOT/dataset/SENvT-u4/1000k_task4/best.pth}"
+TEACHER_ROOT="$EXPERIMENT_ROOT/teacher_finetune"
+STUDENT_ROOT="$EXPERIMENT_ROOT/student_distillation"
+EVALUATION_ROOT="$EXPERIMENT_ROOT/heldout_evaluation"
+RESULTS_ROOT="$EXPERIMENT_ROOT/results"
+
+DEVICE="${DEVICE:-cuda}"
+FOLDS="${FOLDS:-101 102 103 104 105 106 107 108}"
+SEEDS="${SEEDS:-0 1 2}"
+TEACHER_SEED="${TEACHER_SEED:-0}"
+DROP_SUBJECT="${DROP_SUBJECT:-109}"
+
+INPUT_SIZE="${INPUT_SIZE:-496}"
+NUM_CLASSES="${NUM_CLASSES:-12}"
+PATCH_SIZE="${PATCH_SIZE:-16}"
+RESERVOIR_SIZE="${RESERVOIR_SIZE:-1000}"
+PATCH_KEEP_RATIO="${PATCH_KEEP_RATIO:-0.5}"
+NUM_WORKERS="${NUM_WORKERS:-8}"
+
+TEACHER_EPOCHS="${TEACHER_EPOCHS:-100}"
+TEACHER_BATCH_SIZE="${TEACHER_BATCH_SIZE:-64}"
+TEACHER_LR="${TEACHER_LR:-1e-5}"
+TEACHER_MIN_LR="${TEACHER_MIN_LR:-1e-6}"
+TEACHER_WARMUP_EPOCHS="${TEACHER_WARMUP_EPOCHS:-5}"
+
+STUDENT_EPOCHS="${STUDENT_EPOCHS:-100}"
+STUDENT_BATCH_SIZE="${STUDENT_BATCH_SIZE:-64}"
+STUDENT_LR="${STUDENT_LR:-5e-4}"
+STUDENT_MIN_LR="${STUDENT_MIN_LR:-1e-6}"
+STUDENT_WARMUP_EPOCHS="${STUDENT_WARMUP_EPOCHS:-5}"
+
+WEIGHT_DECAY="${WEIGHT_DECAY:-0.05}"
+DISTILLATION_ALPHA="${DISTILLATION_ALPHA:-0.7}"
+DISTILLATION_TAU="${DISTILLATION_TAU:-2.5}"
+TGEC_TEACHER_LAYER="${TGEC_TEACHER_LAYER:-1}"
+
+mkdir -p "$SPLIT_ROOT" "$TEACHER_ROOT" "$STUDENT_ROOT" \
+  "$EVALUATION_ROOT" "$RESULTS_ROOT"
+
+require_file() {
+  local path="$1"
+  [[ -f "$path" ]] || { echo "[ERROR] Missing file: $path" >&2; exit 1; }
+}
+
+select_folds() {
+  local requested="${1:-all}"
+  if [[ "$requested" == "all" ]]; then
+    echo "$FOLDS"
+  elif [[ " $FOLDS " == *" $requested "* ]]; then
+    echo "$requested"
+  else
+    echo "[ERROR] Unknown fold: $requested (allowed: all $FOLDS)" >&2
+    return 2
+  fi
+}
+

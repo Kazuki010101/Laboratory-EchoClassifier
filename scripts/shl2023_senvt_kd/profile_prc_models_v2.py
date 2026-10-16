@@ -156,6 +156,7 @@ def main():
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--input-size", type=int, default=496)
     parser.add_argument("--reservoir-size", type=int, default=1000)
+    parser.add_argument("--num-classes", type=int, default=8)
     parser.add_argument("--patch-size", type=int, default=16)
     parser.add_argument("--keep-ratio", type=float, default=0.5)
     parser.add_argument("--batch-size", type=int, default=1)
@@ -199,7 +200,7 @@ def main():
                 args.patch_size,
                 args.patch_size,
                 args.reservoir_size,
-                8,
+                args.num_classes,
             ),
             False,
         ),
@@ -209,7 +210,7 @@ def main():
                 args.patch_size,
                 args.patch_size,
                 args.reservoir_size,
-                8,
+                args.num_classes,
                 args.keep_ratio,
                 "aps",
             ),
@@ -221,7 +222,7 @@ def main():
                 args.patch_size,
                 args.patch_size,
                 args.reservoir_size,
-                8,
+                args.num_classes,
                 args.keep_ratio,
                 "teacher_skip",
             ),
@@ -233,7 +234,7 @@ def main():
                 args.patch_size,
                 args.patch_size,
                 args.reservoir_size,
-                8,
+                args.num_classes,
                 args.keep_ratio,
                 "tgec",
             ),
@@ -246,6 +247,7 @@ def main():
             "device": str(device),
             "input_size": args.input_size,
             "patch_size": args.patch_size,
+            "num_classes": args.num_classes,
             "requested_keep_ratio": args.keep_ratio,
             "batch_size": args.batch_size,
             "warmup": args.warmup,

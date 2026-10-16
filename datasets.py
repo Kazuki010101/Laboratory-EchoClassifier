@@ -12,6 +12,12 @@ from sklearn.model_selection import train_test_split
 import augment4sig as aug
 
 
+PAMAP2_LABELS = np.array(
+    [1, 2, 3, 4, 5, 6, 7, 12, 13, 16, 17, 24],
+    dtype=np.int64,
+)
+
+
 def _nan_to_num_array(x):
     """
     Remove NaN / Inf from numpy array or torch tensor.
@@ -218,60 +224,78 @@ def build_dataset(args):
 
         nb_classes = 8
 
-    elif args.data == "PAMAP2":
+    elif args.data in {"PAMAP2_train", "PAMAP2_test"}:
         root = args.pamap2_root
 
-        X = np.load(os.path.join(root, "X.npy"))
-        Y = np.load(os.path.join(root, "Y.npy"))
-        G = np.load(os.path.join(root, "groups.npy"))
+        X = np.load(os.path.join(root, "X.npy"), mmap_mode="r")
+        Y = np.asarray(np.load(os.path.join(root, "Y.npy"), mmap_mode="r"))
+        G = np.asarray(np.load(os.path.join(root, "groups.npy"), mmap_mode="r"))
 
-        X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+        if X.ndim != 3 or X.shape[1:] != (3, args.input_size):
+            raise ValueError(
+                f"PAMAP2 X must have shape [N, 3, {args.input_size}], got {X.shape}"
+            )
+        if len(X) != len(Y) or len(Y) != len(G):
+            raise ValueError(
+                f"PAMAP2 sample counts differ: X={len(X)}, Y={len(Y)}, groups={len(G)}"
+            )
 
         if args.pamap2_drop_subj is not None:
             mask = G != args.pamap2_drop_subj
             X, Y, G = X[mask], Y[mask], G[mask]
 
-        unique_label = np.unique(Y)
-        label2int = {int(l): i for i, l in enumerate(unique_label.tolist())}
-        Y = np.array([label2int[int(a)] for a in Y], dtype=np.int64)
-        nb_classes = len(unique_label)
+        unknown = sorted(set(np.unique(Y).tolist()) - set(PAMAP2_LABELS.tolist()))
+        if unknown:
+            raise ValueError(f"Unexpected PAMAP2 labels: {unknown}")
+        label2int = {int(label): index for index, label in enumerate(PAMAP2_LABELS)}
+        Y = np.fromiter((label2int[int(label)] for label in Y), dtype=np.int64)
+        nb_classes = len(PAMAP2_LABELS)
 
-        test_subj = args.fold_test_subj
-        test_idx = G == test_subj
-        trainval_idx = G != test_subj
+        if not args.split_indices:
+            raise ValueError("--split-indices is required for PAMAP2")
+        split = np.load(args.split_indices)
+        prefix = f"fold_{int(args.fold_test_subj)}"
+        required = {
+            f"{prefix}_train_indices",
+            f"{prefix}_val_indices",
+            f"{prefix}_test_indices",
+        }
+        if not required.issubset(split.files):
+            raise ValueError(
+                f"Split file lacks fold {args.fold_test_subj}; required keys: {sorted(required)}"
+            )
 
-        X_test, Y_test = X[test_idx], Y[test_idx]
-        X_tv, Y_tv = X[trainval_idx], Y[trainval_idx]
-
-        n_tv = len(Y_tv)
-        idx = np.arange(n_tv)
-
-        rng = np.random.RandomState(args.seed)
-        rng.shuffle(idx)
-
-        n_val = int(round(n_tv * args.val_ratio))
-        val_ids = idx[:n_val]
-        train_ids = idx[n_val:]
-
-        train_data = TriaxialSignalDataset(
-            data=X_tv[train_ids],
-            labels=Y_tv[train_ids],
-            transform=build_transform(is_train=True, args=args),
+        # Split indices refer to the original arrays, before subject 109 is removed.
+        # Select directly from the original on-disk arrays so that indices remain stable.
+        X_all = np.load(os.path.join(root, "X.npy"), mmap_mode="r")
+        Y_raw_all = np.asarray(np.load(os.path.join(root, "Y.npy"), mmap_mode="r"))
+        Y_all = np.fromiter(
+            (label2int[int(label)] for label in Y_raw_all), dtype=np.int64
         )
 
-        val_data = TriaxialSignalDataset(
-            data=X_tv[val_ids],
-            labels=Y_tv[val_ids],
-            transform=build_transform(is_train=False, args=args),
-        )
+        train_idx = split[f"{prefix}_train_indices"]
+        val_idx = split[f"{prefix}_val_indices"]
+        test_idx = split[f"{prefix}_test_indices"]
+
+        if args.data == "PAMAP2_train":
+            train_data = TriaxialSignalDataset(
+                data=X_all[train_idx],
+                labels=Y_all[train_idx],
+                transform=build_transform(is_train=True, args=args),
+            )
+            val_data = TriaxialSignalDataset(
+                data=X_all[val_idx],
+                labels=Y_all[val_idx],
+                transform=build_transform(is_train=False, args=args),
+            )
+            return train_data, val_data, nb_classes
 
         test_data = TriaxialSignalDataset(
-            data=X_test,
-            labels=Y_test,
+            data=X_all[test_idx],
+            labels=Y_all[test_idx],
             transform=build_transform(is_train=False, args=args),
         )
-
-        return train_data, val_data, test_data, nb_classes
+        return test_data, test_data, nb_classes
 
     elif args.data == "REALWORLD":
         is_first_file = True
