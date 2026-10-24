@@ -1,0 +1,74 @@
+{
+  "prc_p32_ce_seed0": {
+    "dataset": "SHL2023_user23_test",
+    "student": "PRC",
+    "checkpoint": "/home/jovyan/work/srv11/蒸留/EchoClassifier/experiments/shl2023_senvt_kd/student_finetune/user23/prc_p32_ce_seed0/best_checkpoint.pth",
+    "num_samples": 2874,
+    "loss": 0.875767195224762,
+    "acc1": 86.56924401842727,
+    "acc5": 99.54766960382959,
+    "precision_macro": 0.8760891412118459,
+    "recall_macro": 0.8633555631274632,
+    "f1_macro": 0.8690200727068534
+  },
+  "prc_p32_ce_seed1": {
+    "dataset": "SHL2023_user23_test",
+    "student": "PRC",
+    "checkpoint": "/home/jovyan/work/srv11/蒸留/EchoClassifier/experiments/shl2023_senvt_kd/student_finetune/user23/prc_p32_ce_seed1/best_checkpoint.pth",
+    "num_samples": 2874,
+    "loss": 0.8831996897856395,
+    "acc1": 86.22129637015388,
+    "acc5": 99.54766985867367,
+    "precision_macro": 0.8786412422951169,
+    "recall_macro": 0.8670074286067526,
+    "f1_macro": 0.8710635496833808
+  },
+  "prc_p32_ce_seed2": {
+    "dataset": "SHL2023_user23_test",
+    "student": "PRC",
+    "checkpoint": "/home/jovyan/work/srv11/蒸留/EchoClassifier/experiments/shl2023_senvt_kd/student_finetune/user23/prc_p32_ce_seed2/best_checkpoint.pth",
+    "num_samples": 2874,
+    "loss": 0.8595962941646575,
+    "acc1": 86.0821187093014,
+    "acc5": 99.51287502535699,
+    "precision_macro": 0.8798393543942666,
+    "recall_macro": 0.8592664965388754,
+    "f1_macro": 0.8674910864246255
+  },
+  "prc_p32_kd_seed0": {
+    "dataset": "SHL2023_user23_test",
+    "student": "PRC",
+    "checkpoint": "/home/jovyan/work/srv11/蒸留/EchoClassifier/experiments/shl2023_senvt_kd/student_finetune/user23/prc_p32_kd_seed0/best_checkpoint.pth",
+    "num_samples": 2874,
+    "loss": 0.7558703203996022,
+    "acc1": 83.05497792668034,
+    "acc5": 99.33890195778865,
+    "precision_macro": 0.8525743531159882,
+    "recall_macro": 0.8045454442328734,
+    "f1_macro": 0.8227041819834755
+  },
+  "prc_p32_kd_seed1": {
+    "dataset": "SHL2023_user23_test",
+    "student": "PRC",
+    "checkpoint": "/home/jovyan/work/srv11/蒸留/EchoClassifier/experiments/shl2023_senvt_kd/student_finetune/user23/prc_p32_kd_seed1/best_checkpoint.pth",
+    "num_samples": 2874,
+    "loss": 0.7342150141795476,
+    "acc1": 84.30758778486471,
+    "acc5": 99.40849070061223,
+    "precision_macro": 0.8710913671519861,
+    "recall_macro": 0.8411649053338381,
+    "f1_macro": 0.8508729307582994
+  },
+  "prc_p32_kd_seed2": {
+    "dataset": "SHL2023_user23_test",
+    "student": "PRC",
+    "checkpoint": "/home/jovyan/work/srv11/蒸留/EchoClassifier/experiments/shl2023_senvt_kd/student_finetune/user23/prc_p32_kd_seed2/best_checkpoint.pth",
+    "num_samples": 2874,
+    "loss": 0.7702192525068919,
+    "acc1": 82.21990512855864,
+    "acc5": 99.1997230864268,
+    "precision_macro": 0.8415187649003922,
+    "recall_macro": 0.8076448644045958,
+    "f1_macro": 0.8186061495341599
+  }
+}
