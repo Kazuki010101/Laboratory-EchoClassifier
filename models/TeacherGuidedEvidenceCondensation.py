@@ -40,7 +40,7 @@ class PatchReservoir(nn.Module):
     def __init__(self, in_channels, patch_size, stride, reservoir_size,
                  num_classes, patch_keep_ratio=0.5, mode="aps"):
         super().__init__()
-        if mode not in {"aps", "teacher_skip", "tgec"}:
+        if mode not in {"aps", "teacher_skip", "tgec", "tgec_uniform"}:
             raise ValueError(f"Unknown routing mode: {mode}")
         self.mode = mode
         self.keep_ratio = patch_keep_ratio
@@ -49,7 +49,7 @@ class PatchReservoir(nn.Module):
         self.router = nn.Sequential(nn.LayerNorm(patch_size), nn.Linear(patch_size, hidden),
                                     nn.GELU(), nn.Linear(hidden, 1))
         self.summary_encoder = None
-        if mode == "tgec":
+        if mode in {"tgec", "tgec_uniform"}:
             self.summary_encoder = nn.Sequential(
                 nn.Linear(2 * patch_size, 2 * patch_size), nn.GELU(),
                 nn.Linear(2 * patch_size, patch_size), nn.LayerNorm(patch_size))
@@ -65,17 +65,31 @@ class PatchReservoir(nn.Module):
         route_logits = self.router(patches).squeeze(-1)
         patch_count = patches.shape[1]
         keep_count = max(1, min(patch_count, math.ceil(patch_count * self.keep_ratio)))
-        indices = route_logits.topk(keep_count, dim=1).indices.sort(dim=1).values
+        if self.mode == "tgec_uniform":
+            indices = torch.div(
+                torch.arange(keep_count, device=patches.device) * patch_count,
+                keep_count,
+                rounding_mode="floor",
+            )
+            indices = indices.unsqueeze(0).expand(patches.shape[0], -1)
+        else:
+            indices = route_logits.topk(
+                keep_count, dim=1
+            ).indices.sort(dim=1).values
+        
         selected = _batched_gather(patches, indices)
-
-        # Ordinary APS receives task gradients through these gates. Teacher-guided
-        # variants receive an explicit route-distribution loss as well.
-        selected_scores = _batched_gather(route_logits.unsqueeze(-1), indices).squeeze(-1)
-        selected = selected * (2.0 * torch.sigmoid(selected_scores)).unsqueeze(-1)
+        
+        if self.mode != "tgec_uniform":
+            selected_scores = _batched_gather(
+                route_logits.unsqueeze(-1), indices
+            ).squeeze(-1)
+            selected = selected * (
+                2.0 * torch.sigmoid(selected_scores)
+            ).unsqueeze(-1)
         selected_mask = torch.zeros_like(route_logits, dtype=torch.bool).scatter(1, indices, True)
         omitted_mask = ~selected_mask
         summary = None
-        if self.mode == "tgec":
+        if self.mode in {"tgec", "tgec_uniform"}:
             omitted_f = omitted_mask.unsqueeze(-1).to(patches.dtype)
             count = omitted_f.sum(dim=1).clamp_min(1.0)
             mean = (patches * omitted_f).sum(dim=1) / count

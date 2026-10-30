@@ -400,8 +400,18 @@ def main(args):
     elif args.student == "PRC":
         print(f"Creating model: PatchReservoir")
         model = PatchEchoClassifier.PatchReservoir(in_channels=3, patch_size=args.patch_size, stride=args.patch_size, reservoir_size=args.reservoir_size, num_classes=args.nb_classes) #stride=1から変更
-    elif args.student in {"APS_PRC", "TG_SKIP_PRC", "TGEC_PRC"}:
-        mode = {"APS_PRC": "aps", "TG_SKIP_PRC": "teacher_skip", "TGEC_PRC": "tgec"}[args.student]
+    elif args.student in {
+        "APS_PRC",
+        "TG_SKIP_PRC",
+        "TGEC_PRC",
+        "TGEC_UNIFORM_PRC",
+    }:
+        mode = {
+            "APS_PRC": "aps",
+            "TG_SKIP_PRC": "teacher_skip",
+            "TGEC_PRC": "tgec",
+            "TGEC_UNIFORM_PRC": "tgec_uniform",
+        }[args.student]
         print(f"Creating full-rank routed PRC: {args.student}")
         model = TeacherGuidedEvidenceCondensation.PatchReservoir(
             in_channels=3, patch_size=args.patch_size, stride=args.patch_size,

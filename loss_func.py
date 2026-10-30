@@ -164,6 +164,7 @@ class DistillationLoss(torch.nn.Module):
             in {
                 "teacher_skip",
                 "tgec",
+                "tgec_uniform",
             }
         )
 

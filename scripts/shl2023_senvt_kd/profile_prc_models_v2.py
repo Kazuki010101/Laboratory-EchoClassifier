@@ -240,6 +240,18 @@ def main():
             ),
             True,
         ),
+        "tgec_uniform_prc": (
+            lambda: RoutedPRC(
+                3,
+                args.patch_size,
+                args.patch_size,
+                args.reservoir_size,
+                args.num_classes,
+                args.keep_ratio,
+                "tgec_uniform",
+            ),
+            True,
+        ),
     }
 
     result = {
